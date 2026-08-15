@@ -1,0 +1,14 @@
+# Re-assert P-MODE every 30 s: EC writes are policed by the firmware, so a
+# one-shot write does not hold forever. See README ("The one-shot revert law").
+[Unit]
+Description=Re-enforce GMKtec EVO-X2 EC P-MODE performance
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Persistent=true
+Unit=nucbox-pmode-performance.service
+
+[Install]
+WantedBy=timers.target
