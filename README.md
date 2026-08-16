@@ -353,7 +353,7 @@ deploy/
   nucbox-pmode-performance.service  # oneshot: force 0x31 = performance
   nucbox-pmode-performance.timer    # re-assert every 30 s
   strix-halo-fand.service    # upstream daemon's systemd unit as deployed
-PR-TO-NATHANMARLOR.md        # DRAFT PR description for the upstream repo (not sent)
+PR-TO-NATHANMARLOR.md        # upstream docs PR body (sent: nathanmarlor/strix-halo-fan-control#1)
 ```
 
 Paths were sanitized for publication: the scripts originally live at

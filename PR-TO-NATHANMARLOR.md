@@ -1,9 +1,8 @@
 # DRAFT — PR description for nathanmarlor/strix-halo-fan-control
 
-> **Status: NOT SENT.** This is a ready-to-send draft prepared on 2026-08-15.
-> Nothing has been forked, branched, or opened. Simon must approve before any
-> of this text leaves the machine. When approved: fork the repo, create a
-> docs branch, paste the "PR body" below, and submit.
+> **Status: SENT.** Opened 2026-08-15 as
+> https://github.com/nathanmarlor/strix-halo-fan-control/pull/1
+> (docs-only). This file remains the working copy of that body.
 
 ---
 
