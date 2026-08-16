@@ -251,6 +251,22 @@ The two fans are **asymmetric**: fan2 has substantially more headroom
 value is effectively fan1-limited at the top end; the firmware's own 60%
 cap is far below either maximum.
 
+## Field datapoint: sustained 27B inference at the `normal` power profile (2026-08-16)
+
+With the daemon's tuned curve (38% idle, 60% @68C, 95% @82C, 100% above) and the
+CPU un-capped (`normal` EPP=balance_performance, boost on — previously the box
+served 24/7 under a 5-minute timer re-applying `cool`, 3GHz/boost=0), a full day
+of sustained Qwen3.8-27B inference plus parallel -j4 engine builds held:
+
+- Tctl peaks 91.3-94.8C across repeated standardized ~105s load probes and
+  eval batteries (n>10) — inside the bursty-soak edge, no throttling observed;
+- fan2 reaches its ~4539 RPM headroom ceiling at 100% duty as designed;
+- idle recovery to ~50-56C in 35-45s, unchanged from the `cool` era.
+
+Same-session corollary: the inverse claim also held earlier in the night —
+an external USB fan added NO measurable benefit (chassis/heat-pipe internal
+ceiling), which is what makes the EC daemon the meaningful lever on this box.
+
 ## Fan daemon deploy recipe and tuned curve
 
 The deployed daemon is
