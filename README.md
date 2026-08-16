@@ -307,6 +307,15 @@ engagement above 82 °C that the stock curve never reaches (it caps at
 ~60%/~3260 RPM even at 90 °C+). Longer sustained loads are where the stock
 curve's saturation should hurt most; a single 105 s load bounds the claim.
 
+> **Update (2026-08-16, n=3):** standardized ~105 s GPU probes re-run with the
+> daemon continuously running: peak package temps **93 / 92 / 94 °C** vs the
+> stock band 97.5–97.8 °C — a **−3.5 to −5.8 °C** peak delta, larger than the
+> n=1 −1–1.3 °C read above (which stands as history with its label). Fans hit
+> 100% in all three windows. Labeled caveat: the stock baseline was **not
+> re-run** (daemon-untouched rule) — stock figures come from the 2026-08-15
+> measurement ledger. Source: re-baseline experiment log
+> (REBASELINE-RESULTS.md + VALIDITY-MAP.md, 2026-08-15/16 night).
+
 ## The WMI/FCMI alternative (prior art, untested here)
 
 Raw `ec_sys` writes work but are crude. Two sibling-platform projects
