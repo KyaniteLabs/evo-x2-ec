@@ -374,7 +374,7 @@ Paths were sanitized for publication: the scripts originally live at
   Bosgame M5's ACPI DSDT — the same Sixunited AXB35-02 board as the EVO-X2 —
   and that map is exactly what the August 2026 EVO-X2 validation confirmed.
 - **[MintyMods/ip3-power-switch](https://github.com/MintyMods/ip3-power-switch)**
-  — prior art for the WMI path to EC power-profile control on the IP3 Tech
+  (MIT) — prior art for the WMI path to EC power-profile control on the IP3 Tech
   Strix Halo mainboard family (Corsair AI / Beelink / GMK variants).
 - **[pettijohn/corsair-ai-workstation-performance-level-linux](https://github.com/pettijohn/corsair-ai-workstation-performance-level-linux)**
   (GPL-3.0) — prior art for reading the performance level from the EC via
@@ -388,5 +388,7 @@ deployed + tuned the daemon (all documented above).
 ## License
 
 [MIT](LICENSE) — applies to this repository's scripts and documentation. The
-upstream daemon retains its own MIT license; `ip3-power-switch` and
+upstream daemon retains its own MIT license (full retained notice in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), which also covers the
+adapted `deploy/strix-halo-fand.service` unit); `ip3-power-switch` and
 pettijohn's driver retain theirs.

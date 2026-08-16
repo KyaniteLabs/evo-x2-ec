@@ -1,6 +1,13 @@
-# systemd unit for nathanmarlor/strix-halo-fan-control (MIT), as deployed on
+# systemd unit for nathanmarlor/strix-halo-fan-control, as deployed on
 # the EVO-X2. The daemon itself is installed from the upstream repo; only the
 # tuned CURVE line differs (see README "Deploy recipe and tuned curve").
+#
+# Upstream notice (MIT), retained per license:
+#   Copyright (c) 2026 Nathan Marlor
+#   https://github.com/nathanmarlor/strix-halo-fan-control
+# Full MIT permission notice: THIRD-PARTY-NOTICES.md in this repo.
+# This file is upstream's strix-halo-fand.service verbatim, with only
+# this header and the deploy-specific comments above added.
 [Unit]
 Description=Strix Halo direct EC fan control
 After=multi-user.target
