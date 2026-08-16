@@ -7,7 +7,7 @@ AXB35-02 mainboard), observed on Linux via the kernel `ec_sys` interface.
 > **Honest framing — read this first.**
 > This document is a **validation and extension of prior work, not a
 > from-scratch discovery.** The original reverse-engineering of the EC P-MODE
-> register on this machine was done by **Simon Gonzalez de Cruz in May 2026**
+> register on this machine was done by **Simon Gonzalez de Cruz in May 2026, assisted by GLM-5.3**
 > (the `scripts/` in this repo are those artifacts, lightly sanitized). The
 > fan-control daemon deployed and validated here is
 > [nathanmarlor/strix-halo-fan-control](https://github.com/nathanmarlor/strix-halo-fan-control)
@@ -362,7 +362,7 @@ Paths were sanitized for publication: the scripts originally live at
 
 ## Credits
 
-- **Simon Gonzalez de Cruz (May 2026)** — original reverse-engineering of the
+- **Simon Gonzalez de Cruz (May 2026), assisted by GLM-5.3** — original reverse-engineering of the
   EVO-X2 EC P-MODE register (`0x31`), the read-side register map
   (`0x21`–`0x29`, `0x35`–`0x38`, `0x70`), the power/thermal validation
   harness, and the 30 s P-MODE enforcement timer that has held performance
