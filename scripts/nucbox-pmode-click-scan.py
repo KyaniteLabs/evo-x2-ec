@@ -123,7 +123,7 @@ def cpufreq_snapshot() -> dict[str, Any]:
 def ec_snapshot() -> dict[str, Any]:
     root = Path("/sys/class/ec_su_axb35")
     if not root.exists():
-        raw = run(["sudo", "/usr/local/bin/nucbox-ec-readonly.py"], timeout=5)
+        raw = run(["sudo", "/usr/local/bin/gpu-host-ec-readonly.py"], timeout=5)
         try:
             sample = json.loads(raw) if raw.strip() else {}
         except Exception:

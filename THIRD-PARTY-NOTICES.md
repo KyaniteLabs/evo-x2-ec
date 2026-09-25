@@ -61,6 +61,6 @@ OTHER DEALINGS IN THE SOFTWARE.
 ## Provenance of this repository's own artifacts
 
 The May 2026 P-MODE reverse-engineering artifacts in `scripts/`
-(`nucbox-pmode.py`, `nucbox-ec-readonly.py`, `nucbox-pmode-click-scan.py`)
+(`gpu-host-pmode.py`, `gpu-host-ec-readonly.py`, `gpu-host-pmode-click-scan.py`)
 and the `deploy/` modprobe/modules-load configs and P-MODE timer units are
 the original work of Simon Gonzalez de Cruz (see README Credits).

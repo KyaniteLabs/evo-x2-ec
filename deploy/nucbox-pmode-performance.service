@@ -1,14 +1,14 @@
 # Force the EVO-X2 EC P-MODE register (0x31) to performance mode.
 # NOTE: paths sanitized for publication; the original deployment kept the
-# script at ~/bin/nucbox-pmode.py. Adjust ExecStart to match your install.
+# script at ~/bin/gpu-host-pmode.py. Adjust ExecStart to match your install.
 [Unit]
 Description=Force GMKtec EVO-X2 EC P-MODE to performance
 After=systemd-modules-load.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/nucbox-pmode.py set performance
-ExecStartPost=/usr/local/bin/nucbox-pmode.py status
+ExecStart=/usr/local/bin/gpu-host-pmode.py set performance
+ExecStartPost=/usr/local/bin/gpu-host-pmode.py status
 
 [Install]
 WantedBy=multi-user.target

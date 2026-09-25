@@ -8,7 +8,7 @@ OnBootSec=15s
 OnUnitActiveSec=30s
 AccuracySec=5s
 Persistent=true
-Unit=nucbox-pmode-performance.service
+Unit=gpu-host-pmode-performance.service
 
 [Install]
 WantedBy=timers.target
