@@ -199,15 +199,15 @@ Register `0x31` holds the firmware's APU power mode:
 | `0x01` | performance |
 | `0x02` | quiet |
 
-This was the **original May 2026 discovery** on this machine: `scripts/gpu-host-pmode.py`
-reads/sets it; `scripts/gpu-host-pmode-click-scan.py` is the validation harness
+This was the **original May 2026 discovery** on this machine: `scripts/nucbox-pmode.py`
+reads/sets it; `scripts/nucbox-pmode-click-scan.py` is the validation harness
 that ran a fixed bounded CPU workload and logged package watts, GPU/APU
 watts, clocks, and temperatures while the mode was cycled, to prove the
 register's effect on real power/thermal behavior without needing to see the
 physical button event.
 
 Because a one-shot write can be overwritten by other agents, the deployed
-setup is a systemd oneshot + timer (`deploy/gpu-host-pmode-performance.*`) that
+setup is a systemd oneshot + timer (`deploy/nucbox-pmode-performance.*`) that
 re-asserts `0x31 = 0x01` (performance) every 30 s, since May 2026.
 
 Example status output:
@@ -369,14 +369,14 @@ instead of debugfs EC poking).
 
 ```
 scripts/
-  gpu-host-pmode.py            # read/set EC 0x31 P-MODE (May 2026, original RE artifact)
-  gpu-host-ec-readonly.py      # dump known read-side registers as JSON (May 2026)
-  gpu-host-pmode-click-scan.py # power/thermal validation harness while cycling modes (May 2026)
+  nucbox-pmode.py              # read/set EC 0x31 P-MODE (May 2026, original RE artifact)
+  nucbox-ec-readonly.py        # dump known read-side registers as JSON (May 2026)
+  nucbox-pmode-click-scan.py   # power/thermal validation harness while cycling modes (May 2026)
 deploy/
   ec_sys-write.conf          # -> /etc/modprobe.d/   (write_support=1 default)
   ec_sys.conf                # -> /etc/modules-load.d/ (load ec_sys at boot)
-  gpu-host-pmode-performance.service  # oneshot: force 0x31 = performance
-  gpu-host-pmode-performance.timer    # re-assert every 30 s
+  nucbox-pmode-performance.service  # oneshot: force 0x31 = performance
+  nucbox-pmode-performance.timer    # re-assert every 30 s
   strix-halo-fand.service    # upstream daemon's systemd unit as deployed
 PR-TO-NATHANMARLOR.md        # upstream docs PR body (sent: nathanmarlor/strix-halo-fan-control#1)
 ```
