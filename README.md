@@ -330,7 +330,11 @@ curve's saturation should hurt most; a single 105 s load bounds the claim.
 > 100% in all three windows. Labeled caveat: the stock baseline was **not
 > re-run** (daemon-untouched rule) — stock figures come from the 2026-08-15
 > measurement ledger. Source: re-baseline experiment log
-> (REBASELINE-RESULTS.md + VALIDITY-MAP.md, 2026-08-15/16 night).
+> (`experiments/REBASELINE-RESULTS.md` + `experiments/VALIDITY-MAP.md`
+> in the private `halo-collab` repository, 2026-08-15/16 night).
+> **Private evidence:** these logs are not included in this public repo. Access requires
+> permission; public readers cannot independently verify this update from
+> the cited logs. No private log content is reproduced here.
 
 ## The WMI/FCMI alternative (prior art, untested here)
 
