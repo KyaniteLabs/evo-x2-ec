@@ -12,22 +12,134 @@ import argparse
 import json
 import statistics
 import subprocess
-import sys
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
 
 def run(cmd: list[str], timeout: int = 10) -> str:
-    result = subprocess.run(
-        cmd,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        timeout=timeout,
-        check=False,
-    )
+    """Best-effort probe: a missing tool or a hung tool yields empty output,
+    which every *_snapshot() already treats as "no data" instead of aborting
+    the whole scan (and leaving the openssl load running unsupervised)."""
+    try:
+        result = subprocess.run(
+            cmd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
     return result.stdout
+
+
+class EcSource(Enum):
+    """Where ec_snapshot() got its EC data. Persisted (JSONL) as two booleans;
+    EC_SOURCE_FLAGS is the only place that encoding is written.
+
+    DRIVER       ec_su_axb35 sysfs driver present
+    EC_SYS       driver absent, ec_sys read-only script returned a JSON object
+    UNAVAILABLE  driver absent and the script gave nothing usable
+    """
+
+    DRIVER = "driver"
+    EC_SYS = "ec_sys"
+    UNAVAILABLE = "unavailable"
+
+
+EC_SOURCE_FLAGS: dict[EcSource, dict[str, bool]] = {
+    EcSource.DRIVER: {"ec_driver_loaded": True},
+    EcSource.EC_SYS: {"ec_driver_loaded": False, "ec_sys_readable": True},
+    EcSource.UNAVAILABLE: {"ec_driver_loaded": False, "ec_sys_readable": False},
+}
+
+
+def ec_source_of(sample: dict[str, Any]) -> EcSource:
+    """Read the source back from a persisted sample (tolerant of older lines)."""
+    if sample.get("ec_driver_loaded"):
+        return EcSource.DRIVER
+    if sample.get("ec_sys_readable"):
+        return EcSource.EC_SYS
+    return EcSource.UNAVAILABLE
+
+
+class ScanState(Enum):
+    """Lifecycle of one click-scan run::
+
+        RUNNING --complete()------------> COMPLETED   (ok=true,  stop_reason="completed")
+        RUNNING --trip_tctl_guard(t)----> TCTL_GUARD  (ok=false, stop_reason="tctl_guard_<t>C")
+
+    Terminal states accept no further moves.
+    """
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    TCTL_GUARD = "tctl_guard"
+
+
+TCTL_GUARD_PREFIX = "tctl_guard_"
+
+
+class ScanRun:
+    def __init__(self) -> None:
+        self.state = ScanState.RUNNING
+        self.tctl: float | None = None
+
+    def _leave_running(self, to: ScanState) -> None:
+        if self.state is not ScanState.RUNNING:
+            raise ValueError(f"illegal scan transition {self.state.value} -> {to.value}")
+        self.state = to
+
+    def complete(self) -> None:
+        self._leave_running(ScanState.COMPLETED)
+
+    def trip_tctl_guard(self, tctl: float) -> None:
+        self._leave_running(ScanState.TCTL_GUARD)
+        self.tctl = tctl
+
+    def _require_terminal(self) -> None:
+        if self.state is ScanState.RUNNING:
+            raise ValueError("scan is still running")
+
+    @property
+    def ok(self) -> bool:
+        self._require_terminal()
+        return self.state is ScanState.COMPLETED
+
+    @property
+    def stop_reason(self) -> str:
+        self._require_terminal()
+        if self.state is ScanState.COMPLETED:
+            return "completed"
+        return f"{TCTL_GUARD_PREFIX}{self.tctl}C"
+
+    @property
+    def exit_code(self) -> int:
+        return 0 if self.ok else 2
+
+
+def scan_state_from_summary(summary: dict[str, Any]) -> ScanState:
+    """Read the outcome back from a persisted summary.json."""
+    reason = summary.get("stop_reason")
+    if reason == "completed" and summary.get("ok") is True:
+        return ScanState.COMPLETED
+    if isinstance(reason, str) and reason.startswith(TCTL_GUARD_PREFIX) and summary.get("ok") is False:
+        return ScanState.TCTL_GUARD
+    raise ValueError(f"unrecognised scan outcome ok={summary.get('ok')!r} stop_reason={reason!r}")
+
+
+def parse_ec_readonly_output(raw: str) -> dict[str, Any] | None:
+    """The fallback script's JSON object, or None if it produced nothing usable."""
+    if not raw.strip():
+        return None
+    try:
+        sample = json.loads(raw)
+    except ValueError:
+        return None
+    return sample if isinstance(sample, dict) else None
 
 
 def number(value: Any) -> float | None:
@@ -123,14 +235,11 @@ def cpufreq_snapshot() -> dict[str, Any]:
 def ec_snapshot() -> dict[str, Any]:
     root = Path("/sys/class/ec_su_axb35")
     if not root.exists():
-        raw = run(["sudo", "/usr/local/bin/gpu-host-ec-readonly.py"], timeout=5)
-        try:
-            sample = json.loads(raw) if raw.strip() else {}
-        except Exception:
-            return {"ec_driver_loaded": False, "ec_sys_readable": False}
+        sample = parse_ec_readonly_output(run(["sudo", "/usr/local/bin/gpu-host-ec-readonly.py"], timeout=5))
+        if sample is None:
+            return dict(EC_SOURCE_FLAGS[EcSource.UNAVAILABLE])
         return {
-            "ec_driver_loaded": False,
-            "ec_sys_readable": True,
+            **EC_SOURCE_FLAGS[EcSource.EC_SYS],
             "ec_power_mode": sample.get("apu_power_mode"),
             "ec_power_mode_raw": sample.get("apu_power_mode_raw"),
             "ec_temp_c": sample.get("ec_temp_c"),
@@ -143,7 +252,7 @@ def ec_snapshot() -> dict[str, Any]:
         return path.read_text(encoding="utf-8").strip() if path.exists() else None
 
     sample: dict[str, Any] = {
-        "ec_driver_loaded": True,
+        **EC_SOURCE_FLAGS[EcSource.DRIVER],
         "ec_power_mode": read(root / "apu" / "power_mode"),
     }
     for fan in sorted(root.glob("fan*")):
@@ -238,8 +347,7 @@ def main() -> int:
     load = start_load(args.duration, args.threads)
     samples: list[dict[str, Any]] = []
     started = time.time()
-    ok = True
-    stop_reason = "completed"
+    scan = ScanRun()
     next_phase = 1
 
     try:
@@ -281,9 +389,10 @@ def main() -> int:
 
                 tctl = sample.get("tctl_c")
                 if isinstance(tctl, (int, float)) and tctl >= args.max_tctl:
-                    ok = False
-                    stop_reason = f"tctl_guard_{tctl}C"
+                    scan.trip_tctl_guard(tctl)
                     break
+            else:
+                scan.complete()
     finally:
         if load is not None and load.poll() is None:
             load.terminate()
@@ -293,8 +402,8 @@ def main() -> int:
                 load.kill()
 
     summary = {
-        "ok": ok,
-        "stop_reason": stop_reason,
+        "ok": scan.ok,
+        "stop_reason": scan.stop_reason,
         "duration_s": args.duration,
         "phase_seconds": args.phase_seconds,
         "threads": args.threads,
@@ -305,7 +414,7 @@ def main() -> int:
     }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2, sort_keys=True), flush=True)
-    return 0 if ok else 2
+    return scan.exit_code
 
 
 if __name__ == "__main__":

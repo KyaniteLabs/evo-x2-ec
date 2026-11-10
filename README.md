@@ -189,6 +189,14 @@ accident can no longer happen. The transient unload window still exists;
 architecturally, prefer a **single EC writer** (or have one daemon own both
 P-MODE and fan duty) over multiple writers that cycle the module.
 
+**Fixed in the committed script:** `scripts/nucbox-pmode.py` now models the
+module as an explicit state machine (`EcSysState`: absent / read-only /
+writable, read from `write_support`). It returns the module to exactly the
+state it found it in, and if `ec_sys` is already writable it does not unload
+it at all, so the unload window is gone too. It also refuses to write while the
+module is read-only instead of letting the kernel silently discard the byte.
+Tests: `python -m pytest` (no hardware needed; a fake kernel stands in).
+
 ## P-MODE mechanism and enforcement
 
 Register `0x31` holds the firmware's APU power mode:
