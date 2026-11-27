@@ -235,7 +235,7 @@ def cpufreq_snapshot() -> dict[str, Any]:
 def ec_snapshot() -> dict[str, Any]:
     root = Path("/sys/class/ec_su_axb35")
     if not root.exists():
-        sample = parse_ec_readonly_output(run(["sudo", "/usr/local/bin/gpu-host-ec-readonly.py"], timeout=5))
+        sample = parse_ec_readonly_output(run(["sudo", "/usr/local/bin/nucbox-ec-readonly.py"], timeout=5))
         if sample is None:
             return dict(EC_SOURCE_FLAGS[EcSource.UNAVAILABLE])
         return {
