@@ -14,6 +14,15 @@ Resolution rules:
   the package manager, not this repo.
 * Kernel interfaces and runtime data/output paths are out of scope by prefix.
 * A timer's ``Unit=`` must name a unit file this repo ships in ``deploy/``.
+* In a script, a string constant is a reference only when it names a file:
+  absolute, with a non-empty name after its last slash. ``/`` and
+  ``/usr/local/bin/`` name directories, not files.
+
+Known blind spots (none is used by the shipped units): only the first argv
+token of an ``Exec*`` line is resolved, so ``/usr/bin/env python3
+/usr/local/bin/<unshipped>`` and ``/bin/sh -c "<unshipped>"`` pass; a
+backslash line continuation inside a unit yields no reference for that line;
+a basename assembled at runtime is not resolved.
 
 Usage: check-deploy-references.py [REPO_ROOT]
 Exit:  0 every reference resolves, 1 at least one does not.
@@ -115,7 +124,12 @@ def classify(token: str, shipped: dict[str, Path]) -> str | None:
 
 
 def script_string_paths(path: Path):
-    """Yield (line number, absolute-path string) from string constants in a script."""
+    """Yield (line number, absolute file path) from string constants in a script.
+
+    Each constant is read on its own, so in ``f"{missing}/{total} samples"`` the
+    ``'/'`` fragment is seen without the values around it. It ends in a slash and
+    names no file, like any directory string.
+    """
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     for node in ast.walk(tree):
         if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
@@ -127,6 +141,8 @@ def script_string_paths(path: Path):
             token = shlex.split(token)[0]
         except ValueError:
             continue
+        if token.endswith("/"):
+            continue  # a directory (or the root): no file to resolve by basename
         yield node.lineno, token
 
 
