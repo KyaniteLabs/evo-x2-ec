@@ -230,7 +230,7 @@ re-asserts `0x31 = 0x01` (performance) every 30 s, since May 2026.
 Example status output:
 
 ```
-$ sudo gpu-host-pmode.py status
+$ sudo nucbox-pmode.py status
 {
   "apu_power_mode": "performance",
   "apu_power_mode_raw": 1,
@@ -393,6 +393,7 @@ scripts/
   nucbox-pmode.py              # read/set EC 0x31 P-MODE (May 2026, original RE artifact)
   nucbox-ec-readonly.py        # dump known read-side registers as JSON (May 2026)
   nucbox-pmode-click-scan.py   # power/thermal validation harness while cycling modes (May 2026)
+  check-deploy-references.py   # fail when deploy/ or script paths name unshipped files
 deploy/
   ec_sys-write.conf          # -> /etc/modprobe.d/   (write_support=1 default)
   ec_sys.conf                # -> /etc/modules-load.d/ (load ec_sys at boot)
