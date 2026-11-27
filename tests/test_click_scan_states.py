@@ -112,9 +112,17 @@ def _fake_run(monkeypatch, click_scan, stdout=None, exc=None):
 @pytest.mark.parametrize("stdout", ["", "   \n", "not json", "[1, 2]", "null"])
 def test_fallback_without_data_is_unavailable(click_scan, monkeypatch, no_driver, stdout):
     """BUG (old code): empty script output was reported as ec_sys_readable=True
-    with every EC field None; non-object JSON crashed with AttributeError."""
+    with every EC field None; non-object JSON crashed with AttributeError.
+
+    The false flag now ships with the reason it is false (exit status and
+    stderr tail), so the run's artifact can explain the missing evidence."""
     _fake_run(monkeypatch, click_scan, stdout=stdout)
-    assert click_scan.ec_snapshot() == {"ec_driver_loaded": False, "ec_sys_readable": False}
+    snap = click_scan.ec_snapshot()
+    assert snap["ec_driver_loaded"] is False
+    assert snap["ec_sys_readable"] is False
+    assert all(snap.get(key) is None for key in click_scan.EC_SAMPLE_FIELDS)
+    assert snap["ec_read_error"]
+    assert snap["ec_helper_rc"] == 0
 
 
 def test_fallback_with_data_is_ec_sys(click_scan, monkeypatch, no_driver):

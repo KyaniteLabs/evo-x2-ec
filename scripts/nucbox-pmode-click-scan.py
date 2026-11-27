@@ -142,6 +142,79 @@ def parse_ec_readonly_output(raw: str) -> dict[str, Any] | None:
     return sample if isinstance(sample, dict) else None
 
 
+EC_FALLBACK_HELPER = "/usr/local/bin/nucbox-ec-readonly.py"
+EC_SAMPLE_FIELDS = ("apu_power_mode", "apu_power_mode_raw", "ec_temp_c", "fan1_rpm", "fan2_rpm", "fan3_rpm")
+EC_STDERR_TAIL_CHARS = 300
+
+
+def _as_text(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return value if isinstance(value, str) else ""
+
+
+def run_ec_helper(cmd: list[str], timeout: int = 5) -> dict[str, Any]:
+    """Run the read-only EC helper and keep what explaining a failure needs.
+
+    Unlike run(), this keeps the exit status and a bounded stderr tail, and it
+    never raises: a missing or hung helper must report *why* there is no
+    sample instead of looking like a successful read.
+    """
+    try:
+        result = subprocess.run(
+            cmd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "rc": None,
+            "stdout": _as_text(exc.stdout),
+            "stderr": _as_text(exc.stderr),
+            "error": f"helper timed out after {timeout}s",
+        }
+    except OSError as exc:
+        return {"rc": None, "stdout": "", "stderr": "", "error": f"cannot run helper: {type(exc).__name__}: {exc}"}
+    return {
+        "rc": result.returncode,
+        "stdout": _as_text(result.stdout),
+        "stderr": _as_text(result.stderr),
+        "error": None,
+    }
+
+
+def usable_ec_sample(sample: dict[str, Any] | None) -> bool:
+    """True only when the parsed object carries an actual EC reading.
+
+    An empty JSON object, or one without any known EC field, is not evidence
+    that the EC was read -- reporting it as readable is the bug this guards.
+    """
+    if not sample:
+        return False
+    return any(sample.get(key) is not None for key in EC_SAMPLE_FIELDS)
+
+
+def fallback_diagnostics(helper: dict[str, Any], sample: dict[str, Any] | None) -> dict[str, Any]:
+    """Why a fallback sample is missing, persisted beside the false flags."""
+    rc = helper.get("rc")
+    stderr = _as_text(helper.get("stderr")).strip()
+    reason = helper.get("error")
+    if reason is None and not _as_text(helper.get("stdout")).strip():
+        reason = f"helper produced no output (rc={rc})"
+    elif reason is None and sample is None:
+        reason = f"helper output was not a usable JSON object (rc={rc})"
+    elif reason is None:
+        reason = f"helper sample carried no EC fields (rc={rc})"
+    return {
+        "ec_read_error": reason,
+        "ec_helper_rc": rc,
+        "ec_helper_stderr_tail": stderr[-EC_STDERR_TAIL_CHARS:] or None,
+    }
+
+
 def number(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
@@ -235,9 +308,10 @@ def cpufreq_snapshot() -> dict[str, Any]:
 def ec_snapshot() -> dict[str, Any]:
     root = Path("/sys/class/ec_su_axb35")
     if not root.exists():
-        sample = parse_ec_readonly_output(run(["sudo", "/usr/local/bin/gpu-host-ec-readonly.py"], timeout=5))
-        if sample is None:
-            return dict(EC_SOURCE_FLAGS[EcSource.UNAVAILABLE])
+        helper = run_ec_helper(["sudo", EC_FALLBACK_HELPER], timeout=5)
+        sample = parse_ec_readonly_output(helper["stdout"])
+        if not usable_ec_sample(sample):
+            return {**EC_SOURCE_FLAGS[EcSource.UNAVAILABLE], **fallback_diagnostics(helper, sample)}
         return {
             **EC_SOURCE_FLAGS[EcSource.EC_SYS],
             "ec_power_mode": sample.get("apu_power_mode"),
@@ -312,6 +386,27 @@ def summarize(samples: list[dict[str, Any]], phase_seconds: int) -> list[dict[st
                 row[f"{key}_max"] = round(max(vals), 3)
         summary.append(row)
     return summary
+
+
+def ec_evidence_report(samples: list[dict[str, Any]]) -> dict[str, Any]:
+    """What EC evidence the run actually holds, aggregated from its rows."""
+    missing = [s for s in samples if ec_source_of(s) is EcSource.UNAVAILABLE]
+    errors = [s["ec_read_error"] for s in samples if s.get("ec_read_error")]
+    tails = [s["ec_helper_stderr_tail"] for s in samples if s.get("ec_helper_stderr_tail")]
+    return {
+        "samples": len(samples),
+        "samples_with_ec": len(samples) - len(missing),
+        "samples_missing_ec": len(missing),
+        "sources": sorted({ec_source_of(s).value for s in samples}),
+        "helper_returncodes": sorted({s["ec_helper_rc"] for s in samples if isinstance(s.get("ec_helper_rc"), int)}),
+        "first_error": errors[0] if errors else None,
+        "first_stderr_tail": tails[0] if tails else None,
+    }
+
+
+def ec_evidence_missing(samples: list[dict[str, Any]]) -> bool:
+    """False only when every sample carried EC data; an empty run has none."""
+    return not samples or any(ec_source_of(s) is EcSource.UNAVAILABLE for s in samples)
 
 
 def main() -> int:
@@ -401,9 +496,12 @@ def main() -> int:
             except subprocess.TimeoutExpired:
                 load.kill()
 
+    ec_evidence = ec_evidence_report(samples)
     summary = {
         "ok": scan.ok,
         "stop_reason": scan.stop_reason,
+        "ec_evidence_missing": ec_evidence_missing(samples),
+        "ec_evidence": ec_evidence,
         "duration_s": args.duration,
         "phase_seconds": args.phase_seconds,
         "threads": args.threads,
@@ -414,6 +512,13 @@ def main() -> int:
     }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2, sort_keys=True), flush=True)
+    if summary["ec_evidence_missing"]:
+        print(
+            "EC evidence missing: "
+            f"{ec_evidence['samples_missing_ec']}/{ec_evidence['samples']} samples; "
+            f"first reason: {ec_evidence['first_error']}",
+            flush=True,
+        )
     return scan.exit_code
 
 
