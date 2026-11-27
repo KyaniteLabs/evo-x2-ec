@@ -214,6 +214,15 @@ watts, clocks, and temperatures while the mode was cycled, to prove the
 register's effect on real power/thermal behavior without needing to see the
 physical button event.
 
+If the `ec_su_axb35` sysfs driver is absent, the scan falls back to
+`/usr/local/bin/nucbox-ec-readonly.py` and records what it actually got. A row
+without EC data carries `ec_sys_readable: false` plus `ec_read_error`,
+`ec_helper_rc` and a bounded `ec_helper_stderr_tail`; the summary adds
+`ec_evidence_missing` (true unless every sample carried EC data) and an
+`ec_evidence` breakdown, and prints an `EC evidence missing: ...` line. `ok`
+keeps its existing meaning — the run finished without tripping the Tctl guard —
+so EC proof is never inferred from it.
+
 Because a one-shot write can be overwritten by other agents, the deployed
 setup is a systemd oneshot + timer (`deploy/nucbox-pmode-performance.*`) that
 re-asserts `0x31 = 0x01` (performance) every 30 s, since May 2026.

@@ -1,16 +1,28 @@
 #!/usr/bin/env python3
 """Read known EVO-X2/Sixunited AXB35 EC registers through Linux ec_sys.
 
-This is read-only. It expects `sudo modprobe ec_sys` to have exposed
-`/sys/kernel/debug/ec/ec0/io`.
+This is read-only: no register is ever written. It expects root and
+`sudo modprobe ec_sys` to have exposed `/sys/kernel/debug/ec/ec0/io`.
+
+The three ways an operator can fail to reach the EC need three different
+actions, so each gets its own message on stderr and a non-zero exit:
+
+* module not loaded  -> `missing ...; run: sudo modprobe ec_sys`
+* not root           -> `cannot read ...: permission denied ... rerun with sudo
+  or as root`
+* `--help`           -> usage on stdout, exit 0, the EC path is never touched.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
+
+EC_IO = Path("/sys/kernel/debug/ec/ec0/io")
 
 POWER_MODES = {
     0x00: "balanced",
@@ -36,6 +48,10 @@ REGS = {
 }
 
 
+class EcUnavailable(RuntimeError):
+    """The EC debug interface cannot be used; the message is the operator's fix."""
+
+
 def rpm(data: bytes, hi: int, lo: int, fan_name: str) -> int:
     value = data[hi] * 256 + data[lo]
     if fan_name == "fan3" and value == 8000:
@@ -43,11 +59,46 @@ def rpm(data: bytes, hi: int, lo: int, fan_name: str) -> int:
     return value
 
 
-def main() -> int:
-    io = Path("/sys/kernel/debug/ec/ec0/io")
-    if not io.exists():
-        raise SystemExit("missing /sys/kernel/debug/ec/ec0/io; run: sudo modprobe ec_sys")
-    data = io.read_bytes()
+def read_ec_io() -> bytes:
+    """Read the EC register file, mapping each failure to its own remedy.
+
+    Reading first (instead of probing with ``Path.exists()``) keeps the
+    diagnosis honest on every supported Python: 3.12 lets ``exists()`` raise
+    ``PermissionError`` for an unreadable debugfs, while 3.14 turns that same
+    denial into ``False`` and would misreport it as "module not loaded".
+    """
+    try:
+        return EC_IO.read_bytes()
+    except FileNotFoundError:
+        raise EcUnavailable(f"missing {EC_IO}; run: sudo modprobe ec_sys") from None
+    except PermissionError:
+        raise EcUnavailable(
+            f"cannot read {EC_IO}: permission denied; debugfs is root-only, "
+            "rerun with sudo or as root"
+        ) from None
+    except OSError as exc:
+        raise EcUnavailable(f"cannot read {EC_IO}: {exc.strerror or exc}") from None
+
+
+def build_parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog="nucbox-ec-readonly.py",
+        description="Dump known read-side EVO-X2/Sixunited AXB35 EC registers as JSON.",
+        epilog=(
+            "Read-only: no register is written. Requires root and "
+            "/sys/kernel/debug/ec/ec0/io (sudo modprobe ec_sys)."
+        ),
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    # Parsed first, so --help prints usage and exits 0 without touching the EC.
+    build_parser().parse_args(argv)
+    try:
+        data = read_ec_io()
+    except EcUnavailable as exc:
+        print(exc, file=sys.stderr)
+        return 1
     raw = {name: data[offset] for name, offset in REGS.items()}
     sample = {
         "ts": time.time(),
